@@ -12,6 +12,10 @@ dist: bionic
 # Compiler selection
 compiler: gcc
 
+before_install:
+  - sudo apt-get -y install libglm-dev
+  - ./install-terra.sh
+
 # Build steps
 script:
   - mkdir build
