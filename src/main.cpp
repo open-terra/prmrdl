@@ -12,9 +12,12 @@ int32_t main(int32_t argc, char** argv)
     auto radius = 10.0;
     auto samples = 100;
 
-    auto sampler = terra::poisson_disc_sampler(width, height, radius, samples);
-
-    std::count << sampler.sample();
+    std::vector<terra::vec2> points;
+    {
+        auto sampler = terra::poisson_disc_sampler(width, height, radius, samples);
+        std::count << sampler.sample();
+        points = std::move(sampler.points);
+    }
 
     system("pause");
 
