@@ -10,7 +10,7 @@ project(Primordial
 # Use C++17
 set(CMAKE_CXX_STANDARD 17)
 
-# Use C99
+# Use C11
 set(CMAKE_C_STANDARD 11)
 
 # Find Lyra for command line arguments
@@ -30,7 +30,7 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
     set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Ob2")
 endif()
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include ${Terra_DIR}/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_executable(prmrdl
     src/main.cpp
 )
