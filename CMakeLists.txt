@@ -35,5 +35,4 @@ add_executable(prmrdl
     src/main.cpp
 )
 
-link_directories(${Terra_DIR}/build/Debug)
 target_link_libraries(prmrdl Terra)
