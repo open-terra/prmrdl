@@ -14,7 +14,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_C_STANDARD 11)
 
 # Find Lyra for command line arguments
-find_package(Lyra CONFIG REQUIRED)
+#find_package(Lyra CONFIG REQUIRED)
+
+find_package(glm CONFIG REQUIRED)
 
 # Find Terra
 find_package(Terra CONFIG REQUIRED)
@@ -35,4 +37,4 @@ add_executable(prmrdl
     src/main.cpp
 )
 
-target_link_libraries(prmrdl Terra)
+target_link_libraries(prmrdl PRIVATE glm Terra)
