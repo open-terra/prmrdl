@@ -18,8 +18,15 @@ set(CMAKE_C_STANDARD 11)
 
 find_package(glm CONFIG REQUIRED)
 
-# Find Terra
-find_package(Terra CONFIG REQUIRED)
+option(USE_TERRA_SUBPROJECT "" ON)
+if (USE_TERRA_SUBPROJECT)
+    set(Terra_DIR "" CACHE PATH "")
+    set(Terra_BIN_DIR "" CACHE PATH "")
+    add_subdirectory(${Terra_DIR} ${Terra_BIN_DIR})
+else()
+    # Find Terra
+    find_package(Terra CONFIG REQUIRED)
+endif()
 
 # Do stuff depending on the compiler
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
