@@ -27,15 +27,15 @@ int32_t main(int32_t argc, char** argv)
             terra::delaunator d;
             d.triangulate(points);
             tris.reserve(d.triangles.size() / 3);
-            for (size_t i = 0; i < triangles.size(); i += 3)
+            for (size_t i = 0; i < d.triangles.size(); i += 3)
             {
                 const size_t p0 = i;
                 const size_t p1 = i + 1;
                 const size_t p2 = i + 2;
 
-                const size_t v0 = triangles[p0];
-                const size_t v1 = triangles[p1];
-                const size_t v2 = triangles[p2];
+                const size_t v0 = d.triangles[p0];
+                const size_t v1 = d.triangles[p1];
+                const size_t v2 = d.triangles[p2];
 
                 tris.push_back({v0, v1, v2});
             }
