@@ -45,3 +45,5 @@ add_executable(prmrdl
 )
 
 target_link_libraries(prmrdl PRIVATE glm Terra)
+
+terra_copy_kernels(prmrdl)
