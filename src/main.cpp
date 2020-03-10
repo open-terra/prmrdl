@@ -1,55 +1,24 @@
 #include <cstdint>
 #include <iostream>
+#include <optional>
 #include <vector>
-
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/gtx/norm.hpp>
 
 #include <terra/terra.hpp>
 
-tfloat k = 1.0;
-tfloat m = 0.5;
-tfloat n = 1.0;
-tfloat terrain_epsilon = 0.001;
-
-inline void slope_update(const terra::dynarray<size_t>& flow,
-                         const std::vector<terra::vec2>& points,
-                         const terra::dynarray<tfloat>& heights,
-                         terra::dynarray<tfloat>& slope)
-{
-    for (size_t i = 0; i < heights.size(); ++i)
-    {
-        if (flow[i] != terra::flow_graph::node_lake)
-        {
-            const auto dh = heights[flow[i]] - heights[i];
-            const auto dist = glm::distance(points[flow[i]], points[i]);
-            slope[i] = dh / dist;
-        }
-        else
-        {
-            slope[i] = 0.0;
-        }
-    }
-}
-
-inline tfloat stream_power_equation(const tfloat height,
-                                    const tfloat area,
-                                    const tfloat slope)
-{
-    return height - (k * std::pow(area, m) * std::pow(slope, n));
-}
+tfloat terrain_epsilon = 0.0001;
 
 inline bool end_function(const terra::dynarray<tfloat>& heights,
                          terra::dynarray<tfloat>& heights_old)
 {
     for (size_t i = 0; i < heights.size(); ++i)
     {
-        heights_old[i] = heights[i] - heights_old[i];
+        if (terra::math::abs(heights[i] - heights_old[i]) > terrain_epsilon)
+        {
+            return true;
+        }
     }
 
-    tfloat sum = terra::math::sum<tfloat>(heights_old);
-
-    return (sum / heights.size()) > terrain_epsilon;
+    return false;
 }
 
 int32_t main(int32_t argc, char** argv)
@@ -60,97 +29,132 @@ int32_t main(int32_t argc, char** argv)
     engine.init();
 #endif
 
-    tfloat width = 1000.0;
-    tfloat height = 500.0;
-    tfloat radius = 10.0;
-    tfloat samples = 100;
+    tfloat uplift_per_year = 5.01e-4;
+    tfloat erosion_rate = 5.61e-7;
+    tfloat time_scale = 2.5e5;
+
+    tfloat k = 1.0;
+    tfloat m = 0.5;
+    tfloat n = 1.0;
+
+    tfloat uplift_factor = uplift_per_year * time_scale;
+    k = erosion_rate * time_scale;
+
+    size_t width = 50000;
+    size_t height = 50000;
+    tfloat radius = 100.0;
+    size_t samples = 100;
 
     std::vector<terra::vec2> points;
+    std::unique_ptr<terra::hash_grid> hash_grid;
     {
         auto sampler = terra::poisson_disc_sampler();
-        points = sampler.sample(width, height, radius, samples);
+        points = sampler.sample(width, height, radius, samples, hash_grid.get());
     }
+    const size_t node_count = points.size();
 
     std::cout << "Points sampled: " << points.size() << std::endl;
 
-    terra::dynarray<terra::triangle> tris;
+    // verify points are within the sample region
     {
-        terra::delaunator d;
+        size_t valid_points = 0;
+        terra::rect<tfloat> bounds(0.0, 0.0, width, height);
+        for (const auto& p : points)
+        {
+            if (bounds.within_extent(p))
+            {
+                ++valid_points;
+            }
+        }
+
+        std::cout << "Valid Points sampled: " << valid_points << std::endl;
+    }
+
+    terra::dynarray<terra::triangle> tris(0);
+    {
+        terra::delaunay d;
         d.triangulate(points);
         tris = terra::dynarray<terra::triangle>(d.triangles.size() / 3);
-        for (size_t i = 0; i < d.triangles.size(); i += 3)
+
+        std::cout << "Triangles created: " << d.triangles.size() << std::endl;
+
+        for (size_t i = 0; i < tris.size(); ++i)
         {
-            const size_t p0 = i;
-            const size_t p1 = i + 1;
-            const size_t p2 = i + 2;
+            size_t index = i * 3;
+            const size_t p0 = index;
+            const size_t p1 = index + 1;
+            const size_t p2 = index + 2;
 
             const size_t v0 = d.triangles[p0];
             const size_t v1 = d.triangles[p1];
             const size_t v2 = d.triangles[p2];
 
-            tris[i] = {v0, v1, v2};
+            tris[i] = terra::triangle(v0, v1, v2);
         }
 
         std::cout << "Triangles created: " << tris.size() << std::endl;
     }
 
-    terra::undirected_graph graph(points.size(), tris);
+    terra::undirected_graph graph(node_count, tris);
     std::cout << "Graph edges: " << graph.num_edges() << std::endl;
 
-    terra::dynarray<tfloat> areas(points.size());
+    terra::dynarray<tfloat> areas(node_count);
     {
         terra::dynarray<terra::polygon> cells(points.size());
         {
             terra::voronoi v;
-            v.generate(points, {0.0, width, 0.0, height}, cells);
+            v.generate(points, {0.0f, 0.0f, static_cast<tfloat>(width), static_cast<tfloat>(height)}, cells);
         }
 
-        for (size_t i = 0; i < cells.size(); ++i)
+        for (size_t i = 0; i < node_count; ++i)
         {
             const auto& cell = cells[i];
-            const auto& centre = points[cell.centre_idx];
-            areas[i] = cell.area(centre);
+            const auto& centre = points[i];
+            if (cell.vertices.size() > 0)
+            {
+                areas[i] = cell.area(centre);
+            }
+            else
+            {
+                std::cout << "no vertices at: #" << i << " - { " << centre.x << "," << centre.y << " }" << std::endl;
+            }
         }
     }
 
     std::cout << "Voronoi partition completed, areas computed" << std::endl;
 
-    terra::dynarray<tfloat> heights(points.size());
+    terra::dynarray<tfloat> heights(node_count);
     {
-        terra::dynarray<tfloat> heights_old(points.size());
-        for (auto& h : heights)
+        terra::dynarray<tfloat> heights_old(node_count);
+        std::fill(heights.begin(), heights.end(), 0.0f);
+
+        terra::uplift uplift;
         {
-            h = 0.0;
+            terra::linear_uplift uplift_func(width, height, 0.01, 1.0);
+            uplift = terra::uplift(uplift_func, points, heights, uplift_factor);
         }
+        terra::flow_graph flow_graph(node_count, graph, areas, heights);
 
-        terra::uplift uplift(terra::bitmap(), points, heights);
-        terra::flow_graph flow_graph(points.size(), graph, areas, heights);
-        terra::dynarray<tfloat> slopes(points.size());
+        terra::stream_power_equation fluvial_erosion(k, time_scale, points, flow_graph, areas, uplift.uplifts, heights);
 
+        size_t itterations = 0;
         do
         {
             std::copy(heights.begin(), heights.end(), heights_old.begin());
 
             // update
-#ifdef TERRA_USE_OPENCL
-            uplift.update(engine);
-#else
-            uplift.update();
-#endif
             flow_graph.update();
-            slope_update(flow_graph.flow, points, heights, slopes);
 
             // erode
-            for (size_t i = 0; i < points.size(); ++i)
-            {
-                heights[i] = stream_power_equation(heights[i], areas[i], slopes[i]);
-            }
+            fluvial_erosion.update();
         }
-        while (end_function(heights, heights_old));
+        while (end_function(heights, heights_old) && (++itterations) < 300);
+
+        std::cout << "Graph converged in " << itterations << "iterations" << std::endl;
     }
 
     terra::dynarray<terra::vec3> verts(points.size());
-    for (size_t i = 0; i < points.size(); ++i)
+    for (size_t i = 0; i < node_count; ++i)
     {
         const auto& p = points[i];
         verts[i] = { p.x, p.y, heights[i] };
