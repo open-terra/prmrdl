@@ -35,15 +35,17 @@ endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_executable(prmrdl
+    src/lstgtufe.cpp
+    src/noise.cpp
+    src/simulation.cpp
+    src/usage.cpp
     src/main.cpp
 )
 
 set_target_properties(prmrdl
     PROPERTIES 
-        CXX_STANDARD 17
+        CXX_STANDARD 20
         CXX_STANDARD_REQUIRED ON
 )
 
 target_link_libraries(prmrdl PRIVATE glm Terra)
-
-terra_copy_kernels(prmrdl)
